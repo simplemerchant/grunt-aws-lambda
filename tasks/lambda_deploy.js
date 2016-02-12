@@ -120,6 +120,9 @@ module.exports = function(grunt) {
 
         var current = data.Configuration;
         var configParams = {};
+        var roleConfigParams = {
+          Role: options.role
+        };
 
 
         if (options.timeout !== null) {
@@ -132,10 +135,6 @@ module.exports = function(grunt) {
 
         if (options.handler !== null) {
           configParams.Handler = options.handler;
-        }
-
-        if (options.role !== null) {
-          configParams.Role = options.role;
         }
 
         var updateConfig = function(func_name, func_options, callback) {
@@ -218,32 +217,49 @@ module.exports = function(grunt) {
             done(true);
           };
 
-          lambda.updateFunctionCode(codeParams, function(err, data) {
-            if (err) {
-              grunt.fail.fatal('Package upload failed: ' + err);
-            }
-            var version = data.Version;
-            grunt.log.writeln('Package deployed.');
+          if (options.role != null) {
+            grunt.log.writeln(
+              'Setting function role to: ' + options.role
+            );
             updateConfig(
               deploy_function,
-              configParams,
-              function() {
-                if (publish) {
-                  grunt.log.writeln(
-                    'Aliasing ' + options.alias +
-                    ' to version ' + version + '.'
-                  );
-                  createOrUpdateAlias(
-                    deploy_function,
-                    options.alias,
-                    version,
-                    finalDone
-                  );
-                } else {
-                  finalDone();
-                }
-              });
-          });
+              roleConfigParams,
+              updateCode
+            );
+          } else {
+            updateCode();
+          }
+
+          var updateCode = function() {
+            lambda.updateFunctionCode(codeParams, function(err,
+              data) {
+              if (err) {
+                grunt.fail.fatal('Package upload failed: ' +
+                  err);
+              }
+              var version = data.Version;
+              grunt.log.writeln('Package deployed.');
+              updateConfig(
+                deploy_function,
+                configParams,
+                function() {
+                  if (publish) {
+                    grunt.log.writeln(
+                      'Aliasing ' + options.alias +
+                      ' to version ' + version + '.'
+                    );
+                    createOrUpdateAlias(
+                      deploy_function,
+                      options.alias,
+                      version,
+                      finalDone
+                    );
+                  } else {
+                    finalDone();
+                  }
+                });
+            });
+          }
         });
       });
     });
