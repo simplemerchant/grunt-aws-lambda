@@ -33,6 +33,7 @@ module.exports = function(grunt) {
         timeout: null,
         memory: null,
         handler: null,
+        role: null,
         alias: null
       });
 
@@ -131,6 +132,10 @@ module.exports = function(grunt) {
 
         if (options.handler !== null) {
           configParams.Handler = options.handler;
+        }
+
+        if (options.role !== null) {
+          configParams.Role = options.role;
         }
 
         var updateConfig = function(func_name, func_options, callback) {
