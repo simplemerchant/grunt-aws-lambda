@@ -145,7 +145,7 @@ module.exports = function(grunt) {
               err, data) {
               if (err) {
                 grunt.fail.fatal(
-                  'Could not update config, check that values and permissions are valid'
+                  'Could not update config: ' + err
                 );
               }
               grunt.log.writeln('Config updated.');
