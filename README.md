@@ -309,12 +309,6 @@ Default value: None - Required (if you havn't specified an ARN)
 
 *This option is deprecated, use arn instead*. The name of your target Lambda function, ie. the name of the function in the AWS console.
 
-##### alias
-Type: `String`
-Default value: None
-
-The alias under which to publish your function. If no alias is supplied, only `$LATEST` will be updated.
-
 ##### package
 Type: `String`
 Default value: Package name set by package task of same target - see below.
@@ -352,6 +346,18 @@ Default value: `null`
 
 If you wish to use a specific AWS credentials profile you can specify it here, otherwise it will use the environment default.
 You can also specify it with the environment variable `AWS_PROFILE`
+
+##### options.alias
+Type: `String`
+Default value: None
+
+The alias under which to publish your function. If no alias is supplied, only `$LATEST` will be updated.
+
+##### options.role
+Type: `String`
+Default value: None
+
+Set the invocation role of the lambda function.
 
 ##### options.RoleArn
 Type: `String`
