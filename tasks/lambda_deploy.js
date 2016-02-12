@@ -217,19 +217,6 @@ module.exports = function(grunt) {
             done(true);
           };
 
-          if (options.role != null) {
-            grunt.log.writeln(
-              'Setting function role to: ' + options.role
-            );
-            updateConfig(
-              deploy_function,
-              roleConfigParams,
-              updateCode
-            );
-          } else {
-            updateCode();
-          }
-
           var updateCode = function() {
             lambda.updateFunctionCode(codeParams, function(err,
               data) {
@@ -259,6 +246,19 @@ module.exports = function(grunt) {
                   }
                 });
             });
+          }
+
+          if (options.role != null) {
+            grunt.log.writeln(
+              'Setting function role to: ' + options.role
+            );
+            updateConfig(
+              deploy_function,
+              roleConfigParams,
+              updateCode
+            );
+          } else {
+            updateCode();
           }
         });
       });
