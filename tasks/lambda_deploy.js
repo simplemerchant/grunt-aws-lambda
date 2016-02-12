@@ -160,7 +160,6 @@ module.exports = function(grunt) {
           }, function(err, data) {
             if (err && err.statusCode !== 404) {
               grunt.fail.fatal('Failed to get alias: ' + err);
-              w
             }
             var operation;
             if (err) {
@@ -186,7 +185,7 @@ module.exports = function(grunt) {
               }
               callback();
             });
-          })
+          });
         };
 
         grunt.log.writeln('Uploading...');
