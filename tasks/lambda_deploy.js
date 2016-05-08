@@ -8,7 +8,7 @@
 
 'use strict';
 
-module.exports = function(grunt) {
+module.exports = function (grunt) {
 
   var path = require('path');
   var fs = require('fs');
@@ -19,13 +19,14 @@ module.exports = function(grunt) {
   // creation: http://gruntjs.com/creating-tasks
 
   grunt.registerMultiTask('lambda_deploy', 'Uploads a package to lambda',
-    function() {
+    function () {
 
       grunt.config.requires('lambda_deploy.' + this.target + '.package');
 
       var options = this.options({
         profile: null,
         RoleArn: null,
+        assumeRole: null,
         accessKeyId: null,
         secretAccessKey: null,
         credentialsJSON: null,
@@ -90,177 +91,232 @@ module.exports = function(grunt) {
         }
       }
 
-      var done = this.async();
+      var configureClient =
+        function configureClientFn(assumeRole, callback) {
+          var clientConfig = {
+            apiVersion: '2015-03-31',
+          };
 
-      AWS.config.update({
-        region: options.region
-      });
-      var lambda = new AWS.Lambda({
-        apiVersion: '2015-03-31'
-      });
-
-      lambda.getFunction({
-        FunctionName: deploy_function
-      }, function(err, data) {
-
-        if (err) {
-          if (err.statusCode === 404) {
-            grunt.fail.fatal('Unable to find lambda function ' +
-              deploy_function +
-              ', verify the lambda function name and AWS region are correct.'
+          if (assumeRole) {
+            var sts = new AWS.STS({
+              apiVersion: '2011-06-15',
+            });
+            grunt.log.debug('Assuming role: ', assumeRole);
+            sts.assumeRole(
+              assumeRole,
+              function (err, response) {
+                if (err) {
+                  callback(err);
+                } else {
+                  clientConfig.credentials = {
+                    accessKeyId: response.Credentials.AccessKeyId,
+                    secretAccessKey: response.Credentials.SecretAccessKey,
+                    sessionToken: response.Credentials.SessionToken,
+                    expireTime: response.Credentials.Expiration,
+                  };
+                  callback(null, clientConfig);
+                }
+              }
             );
           } else {
-            grunt.log.error('AWS API request failed with ' + err.statusCode +
+            callback(null, clientConfig);
+          };
+        }
+
+      var done = this.async();
+
+      configureClient(
+        options.assumeRole,
+        function (err, configResponse) {
+
+          if (err) {
+            grunt.log.error('Failed to assume role: ' + err.statusCode +
               ' - ' + err);
             grunt.fail.fatal(
               'Check your AWS credentials, region and permissions are correct.'
             );
           }
-        }
 
-        var current = data.Configuration;
-        var configParams = {};
-        var roleConfigParams = {
-          Role: options.role
-        };
+          AWS.config.update({
+            region: options.region
+          });
+          var lambda = new AWS.Lambda(configResponse);
 
+          lambda.getFunction({
+            FunctionName: deploy_function
+          }, function (err, data) {
 
-        if (options.timeout !== null) {
-          configParams.Timeout = options.timeout;
-        }
-
-        if (options.memory !== null) {
-          configParams.MemorySize = options.memory;
-        }
-
-        if (options.handler !== null) {
-          configParams.Handler = options.handler;
-        }
-
-        var updateConfig = function(func_name, func_options, callback) {
-          if (Object.keys(func_options).length > 0) {
-            func_options.FunctionName = func_name;
-            lambda.updateFunctionConfiguration(func_options, function(
-              err, data) {
-              if (err) {
-                grunt.fail.fatal(
-                  'Could not update config: ' + err
-                );
-              }
-              grunt.log.writeln('Config updated.');
-              callback(data);
-            });
-          } else {
-            grunt.log.writeln('No config updates to make.');
-            callback(false);
-            return;
-          }
-        };
-
-        var createOrUpdateAlias = function(fn, alias, version, callback) {
-          lambda.getAlias({
-            FunctionName: fn,
-            Name: alias
-          }, function(err, data) {
-            if (err && err.statusCode !== 404) {
-              grunt.fail.fatal('Failed to get alias: ' + err);
-            }
-            var operation;
             if (err) {
-              grunt.log.writeln(
-                'Alias ' + alias + ' not found, creating.'
-              );
-              operation = 'createAlias';
-            } else {
-              grunt.log.writeln(
-                'Alias ' + alias + ' already exists, updating.'
-              );
-              operation = 'updateAlias';
-            }
-            lambda[operation]({
-              FunctionName: fn,
-              Name: alias,
-              FunctionVersion: version
-            }, function(err, data) {
-              if (err) {
+              if (err.statusCode === 404) {
+                grunt.fail.fatal('Unable to find lambda function ' +
+                  deploy_function +
+                  ', verify the lambda function name and AWS region are correct.'
+                );
+              } else {
+                grunt.log.error('AWS API request failed with ' + err.statusCode +
+                  ' - ' + err);
                 grunt.fail.fatal(
-                  'Error from ' + operation + ': ' + err
+                  'Check your AWS credentials, region and permissions are correct.'
                 );
               }
-              callback();
+            }
+
+            var current = data.Configuration;
+            var configParams = {};
+            var roleConfigParams = {
+              Role: options.role
+            };
+
+
+            if (options.timeout !== null) {
+              configParams.Timeout = options.timeout;
+            }
+
+            if (options.memory !== null) {
+              configParams.MemorySize = options.memory;
+            }
+
+            if (options.handler !== null) {
+              configParams.Handler = options.handler;
+            }
+
+            var updateConfig = function (func_name, func_options,
+              callback) {
+              if (Object.keys(func_options).length > 0) {
+                func_options.FunctionName = func_name;
+                lambda.updateFunctionConfiguration(func_options,
+                  function (
+                    err, data) {
+                    if (err) {
+                      grunt.fail.fatal(
+                        'Could not update config: ' + err
+                      );
+                    }
+                    grunt.log.writeln('Config updated.');
+                    callback(data);
+                  });
+              } else {
+                grunt.log.writeln('No config updates to make.');
+                callback(false);
+                return;
+              }
+            };
+
+            var createOrUpdateAlias = function (fn, alias, version,
+              callback) {
+              lambda.getAlias({
+                FunctionName: fn,
+                Name: alias
+              }, function (err, data) {
+                if (err && err.statusCode !== 404) {
+                  grunt.fail.fatal('Failed to get alias: ' +
+                    err);
+                }
+                var operation;
+                if (err) {
+                  grunt.log.writeln(
+                    'Alias ' + alias +
+                    ' not found, creating.'
+                  );
+                  operation = 'createAlias';
+                } else {
+                  grunt.log.writeln(
+                    'Alias ' + alias +
+                    ' already exists, updating.'
+                  );
+                  operation = 'updateAlias';
+                }
+                lambda[operation]({
+                  FunctionName: fn,
+                  Name: alias,
+                  FunctionVersion: version
+                }, function (err, data) {
+                  if (err) {
+                    grunt.fail.fatal(
+                      'Error from ' + operation + ': ' +
+                      err
+                    );
+                  }
+                  callback();
+                });
+              });
+            };
+
+            grunt.log.writeln('Uploading...');
+            fs.readFile(deploy_package, function (err, data) {
+              if (err) {
+                grunt.fail.fatal(
+                  'Could not read package file (' +
+                  deploy_package +
+                  '), verify the lambda package ' +
+                  'location is correct, and that you have already ' +
+                  'created the package using lambda_package.'
+                );
+              }
+
+              var codeParams = {
+                FunctionName: deploy_function,
+                ZipFile: data
+              };
+
+              var publish = (options.alias != null);
+              if (publish) {
+                codeParams.Publish = true;
+              }
+
+              var finalDone = function () {
+                done(true);
+              };
+
+              var updateCode = function () {
+                lambda.updateFunctionCode(codeParams, function (
+                  err,
+                  data) {
+                  if (err) {
+                    grunt.fail.fatal(
+                      'Package upload failed: ' +
+                      err);
+                  }
+                  var version = data.Version;
+                  grunt.log.writeln('Package deployed.');
+                  updateConfig(
+                    deploy_function,
+                    configParams,
+                    function () {
+                      if (publish) {
+                        grunt.log.writeln(
+                          'Aliasing ' + options.alias +
+                          ' to version ' + version +
+                          '.'
+                        );
+                        createOrUpdateAlias(
+                          deploy_function,
+                          options.alias,
+                          version,
+                          finalDone
+                        );
+                      } else {
+                        finalDone();
+                      }
+                    });
+                });
+              }
+
+              if (options.role != null) {
+                grunt.log.writeln(
+                  'Setting function role to: ' + options.role
+                );
+                updateConfig(
+                  deploy_function,
+                  roleConfigParams,
+                  updateCode
+                );
+              } else {
+                updateCode();
+              }
             });
           });
-        };
-
-        grunt.log.writeln('Uploading...');
-        fs.readFile(deploy_package, function(err, data) {
-          if (err) {
-            grunt.fail.fatal(
-              'Could not read package file (' +
-              deploy_package + '), verify the lambda package ' +
-              'location is correct, and that you have already ' +
-              'created the package using lambda_package.'
-            );
-          }
-
-          var codeParams = {
-            FunctionName: deploy_function,
-            ZipFile: data
-          };
-
-          var publish = (options.alias != null);
-          if (publish) {
-            codeParams.Publish = true;
-          }
-
-          var finalDone = function() {
-            done(true);
-          };
-
-          var updateCode = function() {
-            lambda.updateFunctionCode(codeParams, function(err,
-              data) {
-              if (err) {
-                grunt.fail.fatal('Package upload failed: ' +
-                  err);
-              }
-              var version = data.Version;
-              grunt.log.writeln('Package deployed.');
-              updateConfig(
-                deploy_function,
-                configParams,
-                function() {
-                  if (publish) {
-                    grunt.log.writeln(
-                      'Aliasing ' + options.alias +
-                      ' to version ' + version + '.'
-                    );
-                    createOrUpdateAlias(
-                      deploy_function,
-                      options.alias,
-                      version,
-                      finalDone
-                    );
-                  } else {
-                    finalDone();
-                  }
-                });
-            });
-          }
-
-          if (options.role != null) {
-            grunt.log.writeln(
-              'Setting function role to: ' + options.role
-            );
-            updateConfig(
-              deploy_function,
-              roleConfigParams,
-              updateCode
-            );
-          } else {
-            updateCode();
-          }
-        });
-      });
+        }
+      )
     });
 };
