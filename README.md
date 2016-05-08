@@ -365,6 +365,26 @@ Default value: `null`
 
 If you wish to assume a specific role from an EC2 instance you can specify it here, otherwise it will use the environment default.
 
+##### options.assumeRole
+Type: `Object`
+Default value: `null`
+
+Use this to deploy the Lambda by assuming a role as configured here.
+See [the AWS assumeRole docs](http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/STS.html#assumeRole-property) for
+info on the parameters to provide here.
+
+```
+var params = {
+  RoleArn: 'STRING_VALUE', /* required */
+  RoleSessionName: 'STRING_VALUE', /* required */
+  DurationSeconds: 0,
+  ExternalId: 'STRING_VALUE',
+  Policy: 'STRING_VALUE',
+  SerialNumber: 'STRING_VALUE',
+  TokenCode: 'STRING_VALUE'
+};
+```
+
 ##### options.accessKeyId
 Type: `String`
 Default value: `null`
