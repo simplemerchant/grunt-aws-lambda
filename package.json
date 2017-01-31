@@ -1,5 +1,5 @@
 {
-  "name": "grunt-aws-lambda",
+  "name": "@simple_merchant/grunt-aws-lambda",
   "description": "A grunt plugin to help develop AWS Lambda functions.",
   "version": "1.0.0",
   "homepage": "https://github.com/simplemerchant/grunt-aws-lambda.git",
